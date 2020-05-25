@@ -21,7 +21,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final String serverIp = '192.168.0.200';
   Socket client;
   String faceName = '';
-  String title = 'Face Recognition';
+  //String title = 'Face Recognition';
 
   void _onImageButtonPressed(ImageSource source, {BuildContext context}) async {
     try {
@@ -69,7 +69,6 @@ class _MyHomePageState extends State<MyHomePage> {
     print('Connecting to $serverIp...');
     setState(() {
       connected = false;
-      title = 'Connecting...';
       faceName = '';
     });
     try {
@@ -82,7 +81,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
     setState(() {
       connected = true;
-      title = 'Face Recognition';
     });
 
     print('CONNECTED!');
@@ -128,7 +126,7 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(title),
+        title: Text('Face Recognition'),
       ),
       body: Stack(
         //alignment: Alignment.center,
@@ -136,7 +134,7 @@ class _MyHomePageState extends State<MyHomePage> {
           !connected
               ? Center(
             child: Text(
-              'DISCONNECTED',
+              'CONNECTING...',
               style: TextStyle(
                   color: Colors.red,
                   fontSize: 18.0,
