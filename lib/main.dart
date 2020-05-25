@@ -18,7 +18,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   File _imageFile;
   bool connected = false;
-  final String serverIp = '192.168.1.127';
+  final String serverIp = '192.168.0.200';
   Socket client;
   String faceName = '';
   String title = 'Face Recognition';
