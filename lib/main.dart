@@ -2,13 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-
+import 'package:loading_overlay/loading_overlay.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 void main() => runApp(MaterialApp(
-  home: MyHomePage(),
-));
+      home: MyHomePage(),
+    ));
 
 class MyHomePage extends StatefulWidget {
   @override
@@ -18,10 +18,10 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   File _imageFile;
   bool connected = false;
-  final String serverIp = '192.168.0.200';
+  bool sending = false;
+  final String serverIp = '192.168.1.127';
   Socket client;
   String faceName = '';
-  //String title = 'Face Recognition';
 
   void _onImageButtonPressed(ImageSource source, {BuildContext context}) async {
     try {
@@ -34,13 +34,14 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void sendImage(File image) async {
+    sending = true;
     Uint8List data = await image.readAsBytes();
     String base64Image = base64.encode(data);
     client.write(base64Image + '<EOF>');
+    client.flush();
   }
 
   Widget _previewImage() {
-
     if (_imageFile != null) {
       sendImage(_imageFile);
       return Image.file(_imageFile);
@@ -68,21 +69,21 @@ class _MyHomePageState extends State<MyHomePage> {
   void connectSocket() async {
     print('Connecting to $serverIp...');
     setState(() {
+      sending = false;
+      _imageFile = null;
       connected = false;
       faceName = '';
     });
     try {
-      client = await Socket.connect(serverIp, 5005, timeout: Duration(seconds: 2));
+      client =
+          await Socket.connect(serverIp, 5005, timeout: Duration(seconds: 2));
     } catch (e) {
       print("ERROR CONNECTION: " + e.toString());
       connectSocket();
       return;
     }
 
-    setState(() {
-      connected = true;
-    });
-
+    setState(() => connected = true);
     print('CONNECTED!');
 
     client.listen((List<int> event) {
@@ -105,12 +106,12 @@ class _MyHomePageState extends State<MyHomePage> {
       } else {
         print('client data error.');
       }
+      sending = false;
+      client.write("OK;");
     }, onDone: () {
-      _imageFile = null;
       print('Client connection done!');
       connectSocket();
     }, onError: (e) {
-      _imageFile = null;
       print('Client connection error: ' + e.ToString());
       connectSocket();
     });
@@ -128,81 +129,86 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         title: Text('Face Recognition'),
       ),
-      body: Stack(
-        //alignment: Alignment.center,
-        children: <Widget>[
-          !connected
-              ? Center(
-            child: Text(
-              'CONNECTING...',
-              style: TextStyle(
-                  color: Colors.red,
-                  fontSize: 18.0,
-                  fontWeight: FontWeight.bold),
-            ),
-          )
-              : Center(
-            child: FutureBuilder<void>(
-              future: retrieveLostData(),
-              builder:
-                  (BuildContext context, AsyncSnapshot<void> snapshot) {
-                switch (snapshot.connectionState) {
-                  case ConnectionState.none:
-                  case ConnectionState.waiting:
-                    return const Text(
-                      'You have not yet picked an image.',
-                      textAlign: TextAlign.center,
-                    );
-                  case ConnectionState.done:
-                    return _previewImage();
-                  default:
-                    if (snapshot.hasError) {
-                      return Text(
-                        'Pick image/video error: ${snapshot.error}}',
-                        textAlign: TextAlign.center,
-                      );
-                    } else {
-                      return const Text(
-                        'You have not yet picked an image.',
-                        textAlign: TextAlign.center,
-                      );
-                    }
-                }
-              },
-            ),
-          ),
-          Center(
-              child: Text(faceName,
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20.0))),
-        ],
+      body: LoadingOverlay(
+        isLoading: sending,
+        opacity: 0.5,
+        progressIndicator: CircularProgressIndicator(),
+        color: Colors.grey,
+        child: Stack(
+          children: <Widget>[
+            !connected
+                ? Center(
+                    child: Text(
+                      'CONNECTING...',
+                      style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 18.0,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  )
+                : Center(
+                    child: FutureBuilder<void>(
+                      future: retrieveLostData(),
+                      builder:
+                          (BuildContext context, AsyncSnapshot<void> snapshot) {
+                        switch (snapshot.connectionState) {
+                          case ConnectionState.none:
+                          case ConnectionState.waiting:
+                            return const Text(
+                              'You have not yet picked an image.',
+                              textAlign: TextAlign.center,
+                            );
+                          case ConnectionState.done:
+                            return _previewImage();
+                          default:
+                            if (snapshot.hasError) {
+                              return Text(
+                                'Pick image/video error: ${snapshot.error}}',
+                                textAlign: TextAlign.center,
+                              );
+                            } else {
+                              return const Text(
+                                'You have not yet picked an image.',
+                                textAlign: TextAlign.center,
+                              );
+                            }
+                        }
+                      },
+                    ),
+                  ),
+            Center(
+                child: Text(faceName,
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20.0))),
+          ],
+        ),
       ),
       floatingActionButton: !connected
           ? Container()
           : Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: <Widget>[
-          FloatingActionButton(
-            onPressed: () => _onImageButtonPressed(ImageSource.gallery,
-                context: context),
-            heroTag: 'image0',
-            tooltip: 'Pick Image from gallery',
-            child: const Icon(Icons.photo_library),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 16.0),
-            child: FloatingActionButton(
-              onPressed: () => _onImageButtonPressed(ImageSource.camera,
-                  context: context),
-              heroTag: 'image1',
-              tooltip: 'Take a Photo',
-              child: const Icon(Icons.camera_alt),
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: <Widget>[
+                FloatingActionButton(
+                  onPressed: () => _onImageButtonPressed(ImageSource.gallery,
+                      context: context),
+                  heroTag: 'image0',
+                  tooltip: 'Pick Image from gallery',
+                  child: const Icon(Icons.photo_library),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 16.0),
+                  child: FloatingActionButton(
+                    onPressed: () => _onImageButtonPressed(ImageSource.camera,
+                        context: context),
+                    heroTag: 'image1',
+                    tooltip: 'Take a Photo',
+                    child: const Icon(Icons.camera_alt),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }
